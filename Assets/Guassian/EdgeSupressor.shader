@@ -52,7 +52,7 @@
 					col.z=0;
 				}
 
-				return col.z-0.2>0 && i.uv.x>_MainTex_TexelSize.x && i.uv.y>_MainTex_TexelSize.y && i.uv.x<1-_MainTex_TexelSize.x && i.uv.y<1-_MainTex_TexelSize.y;
+				return col.z * (i.uv.x>_MainTex_TexelSize.x && i.uv.y>_MainTex_TexelSize.y && i.uv.x<1-_MainTex_TexelSize.x && i.uv.y<1-_MainTex_TexelSize.y);
 			}
 			ENDCG
 		}
