@@ -23,22 +23,24 @@
 			struct v2f
 			{
 				float4 vertex : SV_POSITION;
-				float mag : TEXCOORD0;
+				float2 deco : TEXCOORD0;
+			
 			};
 
-			RWStructuredBuffer<float3> lines : register(u1); 
+			StructuredBuffer<float4>  _Lines;
 			
 			v2f vert (uint id : SV_VertexID, uint instanceId : SV_InstanceId)
 			{
 				v2f o;
-				float theta = lines[instanceId].x;
-				float dist = lines[instanceId].y;
+				float theta = _Lines[instanceId].x;
+				float dist = _Lines[instanceId].y;
 				float2 norm = float2(cos(theta),sin(theta));
 				float2 dir = float2(norm.y,-norm.x);
 				float2 pnt = norm*dist;
 				float ln = id*2.0-1;
 				o.vertex = float4(pnt+ln*dir,0,1);
-				o.mag = lines[instanceId].z;
+				o.deco.xy = _Lines[instanceId].zw;
+
 
 				//o.vertex = float4(ln,ln,0,1);
 				return o;
@@ -48,7 +50,7 @@
 			{
 				// sample the texture
 
-				return fixed4(1,1,1,1)*i.mag/10;
+				return fixed4(round(i.deco.y)%9/9,round(i.deco.y)%9/9,round(i.deco.y)%9/9,1);
 			}
 			ENDCG
 		}

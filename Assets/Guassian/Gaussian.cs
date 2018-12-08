@@ -1,6 +1,7 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using System.Linq;
 
 [ExecuteInEditMode] 
 public class Gaussian : MonoBehaviour {
@@ -32,7 +33,64 @@ public class Gaussian : MonoBehaviour {
     static Material hough;
     static Material lineDrawer;
     static Material maxima;
+    static Material pointDrawer;
+    struct Line{
+        public Vector2 pnt;
+        public Vector2 dir;
+        public float theta;
+        public float dist;
+        public float mag;
+        public float index;
+        public Line(float theta, float dist, float mag){
+            this.theta = theta;
 
+            this.dist = dist;
+            this.mag = mag;
+            this.index=0;
+            var norm = new Vector2(Mathf.Cos(theta), Mathf.Sin(theta));
+            pnt = norm * dist;
+            dir = Normal(norm);
+        }
+
+        public bool Intersects(Line other, out Vector2 p){
+
+            float t;
+            if (Intersects(other, out t))
+            {
+                p = pnt + dir * t;
+                return true;
+            }
+            p = Vector2.zero;
+            return false;
+        }
+
+        public bool Intersects(Line other, out float t){
+            var pnt1 = pnt;
+            var pnt2 = other.pnt;
+            var dir1 = dir;
+            var dir2 = other.dir;
+
+            var denom = Vector3.Dot(dir1, Normal(dir2));
+            var num = Vector2.Dot((pnt2 - pnt1), Normal(dir2));
+            if (denom < -0.001 || denom > 0.001)
+            {
+
+                t = num / denom;
+                return true;
+            }
+            t = 0;
+            return false;
+        }
+
+
+        public Vector4 Polar(){
+            return new Vector4(theta, dist,mag,index);
+        }
+    }
+    struct LinePoint{
+        public float t;
+        public Line line;
+    }
     public void OnRenderImage(RenderTexture src, RenderTexture dest){
         CreateTexture();
         CreateMaterial();
@@ -73,77 +131,152 @@ public class Gaussian : MonoBehaviour {
         int[] counter = new int[1] { 0 };
         countBuffer.GetData(counter);
         int count = counter[0];
-        Debug.Log(count);
-        Vector2[] ln = new Vector2[count];
+        //Debug.Log(count);
+        Vector3[] ln = new Vector3[count];
         lines.GetData(ln,0,0,count);
-        List<Vector2> intersections = new List<Vector2>();
-        for (int i = 0; i < count; i++)
+        List<Vector3> intersections = new List<Vector3>();
+        List<Line> vecLines = ln.Select(l=>new Line(l.x,l.y,l.z)).OrderBy(l=>l.theta).ToList();
+        List<Line> filtered = new List<Line>();
+        for (int i = 0; i < vecLines.Count; i++) // Filter paralell lines
         {
-            var norm1 = new Vector2(Mathf.Cos(ln[i].x), Mathf.Sin(ln[i].x));
-            var dist1 = ln[i].y;
-            var pnt1 = norm1 * dist1;
-            var dir1 = new Vector2(norm1.y, -norm1.x);
-            for (int j = 0; j < count; j++)
+            var line1 = vecLines[i];
+            for (int j = i + 1; j < vecLines.Count; j++)
             {
-                if (i != j)
+                var line2 = vecLines[j];
+                var angle = Mathf.Abs(line1.theta - line2.theta);
+                if (angle < 0.05f || angle > Mathf.PI - 0.05f) // if lines are nearly parallel
                 {
-                var norm2 = new Vector2(Mathf.Cos(ln[j].x), Mathf.Sin(ln[j].x));
-                var dist2 = ln[j].y;
-                var pnt2 = norm2 * dist2;
-                var dir2 = new Vector2(norm2.y, -norm2.x);
+                    Vector2 p;
+                    if (line1.Intersects(line2, out p))
+                    {
+                        if (p.x < 2 && p.x > -2 && p.y > -2 && p.y < 2)
+                        {
 
-                    //pnt1+dir1*a = pnt2 * dir2 *b;
-                    //pnt1-pnt2 = dir2*b-dir1*a;
-                    //cx = dir2x*b-dir1x*a
-                    //cy = dir2y*b-dir1y*a
-
-                    //cx*dir2y = dir2x*dir2y*b-dir1x*dir2y*a
-                    //cy*dir2x = dir2y*dir2x*b-dir1y*dir2x*a
-
-                    //cx*dir2y-cy*dir2x = dir1y*dir2x*a-dir1x*dir2y*a = (dir1y*dir2x-dir1x*dir2y)*a
-
-                    //(cx*dir2y-cy*dir2x) / (dir1y*dir2x-dir1x*dir2y) = a     !!!!!!
-
-                    // cx*dir1y = dir2x*dir1y*b-dir1x*dir1y*a;
-                    // cy*dir1x = dir2y*dir1x*b-dir1y*dir1x*a;
-
-                    // cy*dir1x-cx*dir1y = dir2y*dir1x*b-dir2x*dir1y*b;
-
-                    //(cy*dir1x-cx*dir1y)/(dir2y*dir1x-dir2x*dir1y)=b
-
-
-
-                    /*
-                    var c = new Vector2(pnt1-pnt2);
-
-                    var denom = (dir1.y * dir2.x - dir1.x * dir2.y);
-
-                    if(denom!=0){
-                        var t1 = (c.x * dir2.y - c.y * dir2.x) / denom;
-                   
-                        Vector2 intersection = pnt1 + dir1 * t1;
-                        intersections.Add(intersection);
-
+                            goto Found;
+                        }
                     }
-                    */
-
                 }
             }
+            filtered.Add(line1);
+
+            Found:{}
+
         }
 
-        var args = new ComputeBuffer(4, sizeof(int), ComputeBufferType.IndirectArguments);
-        args.SetData(new int[]{ 2, counter[0], 0, 0 });
 
-        Graphics.Blit(houghBuffer, dest);
+        Line baseLine = filtered[0];
+
+        var linepoints = filtered.Select(l =>
+            {
+                float p;
+                if (!l.Intersects(baseLine, out p))
+                    p = float.PositiveInfinity;
+                return new LinePoint(){
+                    line = l,
+                    t = p
+                };
+            }).OrderBy(lp=>lp.t).ToArray();
 
 
-        Shader.SetGlobalBuffer("lines", lines);
-        lineDrawer.SetPass(0);
-        Graphics.DrawProceduralIndirect(MeshTopology.Lines, args);
+        if (linepoints[linepoints.Length-1].t==float.PositiveInfinity) // found a parallel line
+            linepoints = linepoints.OrderBy(lp=>Mathf.Abs(lp.t)).ToArray();
+                    
+
+        Line baseu = linepoints[17].line;
+        Line basev = linepoints[0].line;
+
+        if (Vector2.Dot(baseu.dir, Vector2.one) < 0)
+        {
+            baseu.dir *= -1;
+        }
+        if (Vector2.Dot(basev.dir, Vector2.one) < 0)
+        {
+            basev.dir *= -1;
+        }
 
 
+        var u = linepoints.Take(9).OrderBy(l=>{float t; if(!baseu.Intersects(l.line,out t))Debug.Log("WTF"); return t;}).ToArray();
+        var v = linepoints.Skip(9).OrderBy(l=>{float t; if(!basev.Intersects(l.line,out t))Debug.Log("WTF"); return t;}).ToArray();
 
+
+        if (Mathf.Abs(Vector2.Dot(baseu.dir, Vector3.right)) < Mathf.Abs(Vector2.Dot(basev.dir, Vector3.right)))
+        {
+            var temp = u;
+            u = v;
+            v = temp;
+
+        }
+
+        filtered = u.Concat(v).Select(l => l.line).ToList();
+
+        for (int i = 0; i < u.Length; i++)
+        {
+            var lineu = u[i].line;
+            for (int j = 0; j < v.Length; j++)
+            {
+                var linev = v[j].line;
+                   
+                Vector2 p;
+                lineu.Intersects(linev, out p);
+
+                intersections.Add(new Vector3(p.x,p.y,i*9+j));
+    
+                    
+            }
+        }
+      
+        Graphics.Blit(src, dest);
+
+        //Shader.SetGlobalBuffer("lines", lines);
+        if (filtered.Count > 0)
+        {
+            var far = filtered.Select(l => l.Polar()).ToArray();
+            var clines = new ComputeBuffer(filtered.Count, sizeof(float) * 4);
+            clines.SetData(far, 0, 0, filtered.Count);
+            Shader.SetGlobalBuffer("_Lines", clines);
+            lineDrawer.SetPass(0);
+
+            var args = new ComputeBuffer(4, sizeof(int), ComputeBufferType.IndirectArguments);
+            args.SetData(new int[]{ 2, filtered.Count, 0, 0 });
+
+            Graphics.DrawProceduralIndirect(MeshTopology.Lines, args);
+            args.Release();
+            clines.Release();
+
+        }
+
+        if (intersections.Count > 0)
+        {
+
+            var points = new ComputeBuffer(intersections.Count, sizeof(float) * 3, ComputeBufferType.Default);
+
+            points.SetData(intersections.ToArray());
+            var args = new ComputeBuffer(4, sizeof(int), ComputeBufferType.IndirectArguments);
+            args.SetData(new int[]{ 2, intersections.Count, 0, 0 });
+
+            Shader.SetGlobalBuffer("_Points", points);
+            pointDrawer.SetPass(0);
+
+            Graphics.DrawProceduralIndirect(MeshTopology.Lines, args);
+            args.Release();
+            points.Release();
+
+
+        }
+
+        lines.Release();
+
+        countBuffer.Release();
+      
+      
     }
+
+
+
+    public static Vector2 Normal(Vector2 v){
+        return new Vector2(v.y, -v.x);
+    }
+
     public static void CreateMaterial(){
         if (mat == null)
         {
@@ -172,6 +305,10 @@ public class Gaussian : MonoBehaviour {
         if (maxima == null)
         {
             maxima = new Material(Shader.Find("Hidden/Maxima"));
+        }
+        if (pointDrawer == null)
+        {
+            pointDrawer = new Material(Shader.Find("Unlit/PointDrawer"));
         }
     }
 
