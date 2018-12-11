@@ -267,8 +267,11 @@ public class Gaussian : MonoBehaviour {
         lines.Release();
 
         countBuffer.Release();
-      
-      
+        temp1.Release();
+        temp2.Release();
+        houghBuffer.Release();
+        hough2.Release();
+
     }
 
 
