@@ -1,6 +1,7 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using System.Linq;
 
 public class Matrix{
     public readonly int n;
@@ -10,6 +11,102 @@ public class Matrix{
         this.n = n;
         this.m = m;
         data = new float[m * n];
+    }
+
+    public bool IsColumnVector(){
+        return m == 1;
+    }
+
+    public bool IsRowVector(){
+        return n == 1;
+    }
+
+    public bool IsScalar(){
+        return n == 1 && m == 1;
+    }
+
+    public Matrix(params float[] entries) : this(1,entries.Length){
+        for (int j = 0; j < m; j++)
+        {
+            this[0, j] = entries[j];
+        }
+    }
+
+    public void AssertVector(){
+        if (m != 1 && n!=1)
+        {
+            throw new System.InvalidOperationException("Not a Vector! "+n+"x"+m);
+        }
+    }
+
+    public float x {
+        get{
+            AssertVector();
+
+            return this[0];
+        }
+    }
+
+
+    public float y {
+        get{
+            AssertVector();
+            if (Length < 2)
+            {
+                throw new System.IndexOutOfRangeException("Doesn't have a y component");
+            }
+            return this[1];
+        }
+    }
+
+    public float z {
+        get{
+            AssertVector();
+            if (Length < 3)
+            {
+                throw new System.IndexOutOfRangeException("Doesn't have a z component");
+            }
+            return this[2];
+        }
+    }
+
+    public float w {
+        get{
+            AssertVector();
+            if (Length < 3)
+            {
+                throw new System.IndexOutOfRangeException("Doesn't have a w component");
+            }
+            return this[Length==3?2:3];
+        }
+    }
+
+    public Matrix SetData(params float[] entries){
+        if (entries.Length != this.Length)
+        {
+            throw new System.ArgumentOutOfRangeException("Wrong number of entries");
+        }
+        for (int j = 0; j < m; j++)
+        {
+            for (int i = 0; i < n; i++)
+            {
+                this[i, j] = entries[j + i * m];
+            }
+        }
+        return this;
+    }
+    public Matrix(params Matrix[] vectors) : this(1,vectors.Select(s=>s.Length).Sum()){
+        int offset = 0;
+        foreach (var vec in vectors)
+        {
+            vec.AssertVector();
+
+            for (int j = 0; j < vec.Length; j++)
+            {
+                this[0,j+offset] = vec[j];
+            }
+            offset += vec.Length;
+        }
     }
 
     float[] data;
@@ -120,6 +217,10 @@ public class Matrix{
         return output;
     }
 
+    public static Matrix operator * (float s, Matrix A){
+        return A * s;
+    }
+
     public static Matrix operator / (Matrix A, float s){
         return A * (1f / s);
     }
@@ -145,27 +246,44 @@ public class Matrix{
     }
 
     public static implicit operator Vector4(Matrix A){
-        if (A.n <= 4 && A.m == 1)
+        A.AssertVector();
+        var v = new Vector4();
+        for (int i = 0; i < A.Length; i++)
         {
-            var v = new Vector4();
-            for (int i = 0; i < A.n; i++)
-            {
-                v[i] = A[i, 0];
-            }
-            return v;
+            v[i] = A[i];
         }
-        throw new System.InvalidCastException("Not a Vector!");
+        return v;
     }
 
     public static implicit operator float(Matrix A){
-        if (A.n == 1 && A.m == 1)
+        if (A.IsScalar())
         {
             return A[0];
         }
         throw new System.InvalidCastException("Not a 1x1 matrix!");
     }
 
+    public static implicit operator Matrix(Vector4 v){
+        return new Matrix(v.x, v.y, v.z, v.w).T;
+    }
+
+    public static implicit operator Matrix(Vector3 v){
+        return new Matrix(v.x, v.y, v.z).T;
+    }
+
+    public static implicit operator Matrix(Vector2 v){
+        return new Matrix(v.x, v.y).T;
+    }
+
     public static Matrix operator * (Matrix A, Matrix B){
+        if (B.IsScalar())
+        {
+            return A * (float)B;
+        }
+        if (A.IsScalar())
+        {
+            return (float)A * B;
+        }
         if (A.m != B.n)
         {
             throw new System.InvalidOperationException("Matrix Dimensions Incompatible");
@@ -184,16 +302,6 @@ public class Matrix{
             }
         }
         return output;
-    }
-
-    public static Vector4 operator * (Matrix A, Vector4 v){
-        Matrix B = new Matrix(4, 1);
-        B[0, 0] = v.x;
-        B[1, 0] = v.y;
-        B[2, 0] = v.z;
-        B[3, 0] = v.w;
-        var ret = A * B;
-        return new Vector4(ret[0, 0], ret[1, 0], ret[2, 0], ret[3, 0]);
     }
 
     public static Matrix operator - (Matrix A, Matrix B){
@@ -227,7 +335,56 @@ public class Matrix{
         return s;
     }
 
+    public void SVD(out Matrix U, out Matrix S, out Matrix V)
+    {
+        var A = this;
+        U = new Matrix(A.n, A.n);
+        S = new Matrix(A.n, A.m);
+        V = new Matrix(A.m, A.m);
+        for (int i = 0; i < Mathf.Min(A.m, A.n); i++)
+        {
+            var M1D = A.copy();
+            for (int j = 0; j < i; j++)
+            {
+                M1D -= U.Col(j) * V.Col(j).T * S[j, j];
+            }
+            Matrix u;
+            Matrix v;
+            float s;
 
+            {
+                Matrix B = M1D.T * M1D;
+
+                v = new Matrix(M1D.m, 1);
+
+                for (int k = 0; k < v.Length; k++)
+                {
+                    v[k] = Random.value;
+                }
+                v = v / v.norm;
+
+
+                float dot = 0;
+                while (dot < 1 - 0.000001f)
+                {
+                    var lastV = v.copy();
+
+                    v = B * v;
+                    v = v / v.norm;
+
+                    dot = lastV.T * v;
+                }
+            }
+
+            u = A * v;
+            s = u.norm;
+            u = u / s;
+
+            U.SetCol(i, u);
+            V.SetCol(i, v);
+            S[i, i] = s;
+        }
+    }
    
 
 }

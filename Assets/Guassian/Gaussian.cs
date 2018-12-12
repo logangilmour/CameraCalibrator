@@ -245,6 +245,35 @@ public class Gaussian : MonoBehaviour {
 
         }
 
+        Matrix PointEquations = new Matrix(intersections.Count * 2, 9);
+        for (int i = 0; i < intersections.Count; i++)
+        {
+            Matrix xp = new Matrix(intersections[i].x, intersections[i].y, 1).T;
+            Matrix x = new Matrix((i % 9) / 9f,(i / 9) / 9f, 1).T;
+            Matrix zero = new Matrix(1, 3);
+            PointEquations.SetRow(i * 2, new Matrix(zero, -xp.w * x.T, xp.y * x.T));
+            PointEquations.SetRow(i * 2 + 1, new Matrix(xp.w * x.T, zero, -xp.x * x.T));
+        }
+
+        Matrix U, S, V;
+
+        PointEquations.SVD(out U, out S, out V);
+
+
+        Matrix h = V.Col(V.m-1);
+
+        Matrix H = new Matrix(3, 3).SetData(h[0], h[1], h[2],
+                                            h[3], h[4], h[5],
+                                            h[6], h[7], h[8]);
+
+
+        //Debug.Log(H);
+
+        var m = H * new Matrix(0.45f, 0.45f, 1f).T;
+        Debug.Log(m.x+", "+m.y+"; "+m.x / m.w+", "+ m.y / m.w);
+
+        intersections.Add(new Vector3(m.x / m.w, m.y / m.w, -1));
+
         if (intersections.Count > 0)
         {
 
@@ -263,6 +292,8 @@ public class Gaussian : MonoBehaviour {
 
 
         }
+
+
 
         lines.Release();
 

@@ -40,7 +40,7 @@
 			{
 				// sample the texture
 
-				return fixed4(i.col%9/9.0,i.col/9/9.0,0,1);
+				return fixed4(i.col%9/9.0+i.col<0,i.col/9/9.0+i.col<0,i.col<0,1);
 			}
 			ENDCG
 		}

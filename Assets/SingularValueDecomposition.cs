@@ -69,7 +69,7 @@ public class SingularValueDecomposition{
         Debug.Log(V.Col(2));
         Debug.Log(Vector3.Cross((Vector4)V.Col(0), (Vector4)(V.Col(1))));
 
-        S[2, 2] = 0;
+        S[2, 2] = 2;
 
         var AA = U * S * V.T;
 
