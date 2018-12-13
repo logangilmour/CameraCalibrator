@@ -5,25 +5,109 @@ using System.Linq;
 
 [ExecuteInEditMode] 
 public class Gaussian : MonoBehaviour {
-
+    List<Matrix> Homographies;
+    List<Vector3> intersections;
 	// Use this for initialization
 	void Start () {
-		
+        Homographies = new List<Matrix>();
 	}
 	
 	// Update is called once per frame
 	void Update () {
-        
-        string s = "";
-        float total = 0;
         CreateTexture();
-        for (int i = 0; i < gaussian.width; i++)
+        if (Input.GetKeyDown(KeyCode.Space))
         {
-            float v = gaussian.GetPixel(i, 0).r;
-            s += v + ", ";
-            total += v;
+
+            Matrix PointEquations = new Matrix(intersections.Count * 2, 9);
+            for (int i = 0; i < intersections.Count; i++)
+            {
+                Matrix xp = new Matrix(intersections[i].x, intersections[i].y, 1).T;
+                Matrix x = new Matrix((i % 9) / 9f, (i / 9) / 9f, 1).T;
+                Matrix zero = new Matrix(1, 3);
+                PointEquations.SetRow(i * 2, new Matrix(zero, -xp.w * x.T, xp.y * x.T));
+                PointEquations.SetRow(i * 2 + 1, new Matrix(xp.w * x.T, zero, -xp.x * x.T));
+            }
+
+            Matrix U, S, V;
+
+            PointEquations.SVD(out U, out S, out V);
+
+
+            Matrix h = V.Col(V.m - 1);
+
+            Matrix H = new Matrix(3, 3).SetData(h[0], h[1], h[2],
+                h[3], h[4], h[5],
+                h[6], h[7], h[8]);
+            Homographies.Add(H);
+            Debug.Log("ADDED " + Homographies.Count + "nth Homography");
+
+        }
+        if (Input.GetKeyDown(KeyCode.Return))
+        {
+            Matrix HEquations = new Matrix(Homographies.Count*2+(Homographies.Count<3?1:0)+(Homographies.Count<2?2:0), 6);
+            for (int i = 0; i < Homographies.Count; i++)
+            {
+                var H = Homographies[i];
+                HEquations.SetRow(i*2, V6(H, 0, 1));
+                HEquations.SetRow(i*2+1, V6(H, 0, 0) - V6(H, 1, 1));
+            }
+            if (Homographies.Count < 3)
+            {
+                int off = Homographies.Count;
+                HEquations.SetRow(off * 2, new Matrix(0, 1, 0, 0, 0, 0));
+                if (Homographies.Count < 2)
+                {
+                    HEquations.SetRow(off*2 + 1, new Matrix(0, 0, 0, 1, 0, 0));
+                    HEquations.SetRow(off*2 + 2, new Matrix(0, 0, 0, 0, 1, 0));
+                }
+            }
+            Homographies.Clear();
+            Matrix U, S, V;
+            HEquations.SVD(out U, out S, out V);
+            var b = V.Col(V.m - 1);
+
+            float B11 = b[0];
+            float B12 = b[1];
+            float B22 = b[2];
+            float B13 = b[3];
+            float B23 = b[4];
+            float B33 = b[5];
+
+            float v = (B12 * B13 - B11 * B23) / (B11 * B22 - B12 * B12);
+            float lambda = B33 - (B13 * B13 + v * (B12 * B13 - B11 * B23)) /B11;
+
+            float alpha = Mathf.Sqrt(lambda / B11);
+            float beta = Mathf.Sqrt(lambda*B11/(B11*B22-B12*B12));
+            float gamma = -B12 * alpha * alpha * beta / lambda;
+            float u = gamma * v / beta - B13 * alpha * alpha / lambda;
+
+            Matrix A = new Matrix(3, 3).SetData(
+                           alpha, gamma, u,
+                           0, beta, v,
+                0, 0, 1);
+
+            Debug.Log(A);
+
+            //var A = new Matrix(3,3).SetData(
+
+        }
+        if (Input.GetKeyDown(KeyCode.P))
+        {
+            Debug.Log(Camera.main.projectionMatrix);
+
         }
 	}
+
+    public Matrix V6(Matrix H, int i, int j){
+        H = H.T;
+        return new Matrix(
+            H[i, 0] * H[j, 0],
+            H[i, 0] * H[j, 1] + H[i, 1] * H[j, 0],
+            H[i, 1] * H[j, 1],
+            H[i, 2] * H[j, 0] + H[i, 0] * H[j, 2],
+            H[i, 2] * H[j, 1] + H[i, 1] * H[j, 2],
+            H[i, 2] * H[j, 2]);
+    }
 
     static Texture2D gaussian;
     static Material mat;
@@ -134,7 +218,7 @@ public class Gaussian : MonoBehaviour {
         //Debug.Log(count);
         Vector3[] ln = new Vector3[count];
         lines.GetData(ln,0,0,count);
-        List<Vector3> intersections = new List<Vector3>();
+        intersections = new List<Vector3>();
         List<Line> vecLines = ln.Select(l=>new Line(l.x,l.y,l.z)).OrderBy(l=>l.theta).ToList();
         List<Line> filtered = new List<Line>();
         for (int i = 0; i < vecLines.Count; i++) // Filter paralell lines
@@ -245,34 +329,11 @@ public class Gaussian : MonoBehaviour {
 
         }
 
-        Matrix PointEquations = new Matrix(intersections.Count * 2, 9);
-        for (int i = 0; i < intersections.Count; i++)
-        {
-            Matrix xp = new Matrix(intersections[i].x, intersections[i].y, 1).T;
-            Matrix x = new Matrix((i % 9) / 9f,(i / 9) / 9f, 1).T;
-            Matrix zero = new Matrix(1, 3);
-            PointEquations.SetRow(i * 2, new Matrix(zero, -xp.w * x.T, xp.y * x.T));
-            PointEquations.SetRow(i * 2 + 1, new Matrix(xp.w * x.T, zero, -xp.x * x.T));
-        }
-
-        Matrix U, S, V;
-
-        PointEquations.SVD(out U, out S, out V);
-
-
-        Matrix h = V.Col(V.m-1);
-
-        Matrix H = new Matrix(3, 3).SetData(h[0], h[1], h[2],
-                                            h[3], h[4], h[5],
-                                            h[6], h[7], h[8]);
+       
+       
 
 
         //Debug.Log(H);
-
-        var m = H * new Matrix(0.45f, 0.45f, 1f).T;
-        Debug.Log(m.x+", "+m.y+"; "+m.x / m.w+", "+ m.y / m.w);
-
-        intersections.Add(new Vector3(m.x / m.w, m.y / m.w, -1));
 
         if (intersections.Count > 0)
         {
@@ -304,8 +365,7 @@ public class Gaussian : MonoBehaviour {
         hough2.Release();
 
     }
-
-
+        
 
     public static Vector2 Normal(Vector2 v){
         return new Vector2(v.y, -v.x);
