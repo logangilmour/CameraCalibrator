@@ -25,7 +25,7 @@ public class SingularValueDecomposition{
             }
             Matrix u;
             Matrix v;
-            float s;
+            double s;
 
             {
                 Matrix B = M1D.T * M1D;
@@ -39,8 +39,8 @@ public class SingularValueDecomposition{
                 v = v / v.norm;
 
 
-                float dot = 0;
-                while (dot < 1 - 0.000001f)
+                double dot = 0;
+                while (dot < 1 - 1e-12)
                 {
                     Debug.DrawRay(Vector3.zero, (Vector4)v,new Color[]{Color.red,Color.green,Color.cyan,Color.yellow}[i],2);
                     Debug.Log(v);
@@ -49,7 +49,7 @@ public class SingularValueDecomposition{
                     v = B * v;
                     v = v / v.norm;
 
-                    dot = lastV.T * v;
+                    dot = (float)(lastV.T * v);
 
                     Debug.Log(dot);
 

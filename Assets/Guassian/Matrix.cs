@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 using System.Linq;
+using System;
 
 public class Matrix{
     public readonly int n;
@@ -10,7 +11,7 @@ public class Matrix{
     public Matrix(int n, int m){
         this.n = n;
         this.m = m;
-        data = new float[m * n];
+        data = new double[m * n];
     }
 
     public bool IsColumnVector(){
@@ -25,7 +26,7 @@ public class Matrix{
         return n == 1 && m == 1;
     }
 
-    public Matrix(params float[] entries) : this(1,entries.Length){
+    public Matrix(params double[] entries) : this(1,entries.Length){
         for (int j = 0; j < m; j++)
         {
             this[0, j] = entries[j];
@@ -39,7 +40,7 @@ public class Matrix{
         }
     }
 
-    public float x {
+    public double x {
         get{
             AssertVector();
 
@@ -48,7 +49,7 @@ public class Matrix{
     }
 
 
-    public float y {
+    public double y {
         get{
             AssertVector();
             if (Length < 2)
@@ -59,7 +60,7 @@ public class Matrix{
         }
     }
 
-    public float z {
+    public double z {
         get{
             AssertVector();
             if (Length < 3)
@@ -70,7 +71,7 @@ public class Matrix{
         }
     }
 
-    public float w {
+    public double w {
         get{
             AssertVector();
             if (Length < 3)
@@ -81,7 +82,7 @@ public class Matrix{
         }
     }
 
-    public Matrix SetData(params float[] entries){
+    public Matrix SetData(params double[] entries){
         if (entries.Length != this.Length)
         {
             throw new System.ArgumentOutOfRangeException("Wrong number of entries");
@@ -109,7 +110,7 @@ public class Matrix{
         }
     }
 
-    float[] data;
+    double[] data;
 
     public Matrix Row(int i){
         Matrix R = new Matrix(1, m);
@@ -144,22 +145,23 @@ public class Matrix{
         }
     }
 
-    public void SetCol(int j,Matrix C){
+    public void SetCol(int j,Matrix v){
         if (j < 0 || j >= m)
         {
             throw new System.IndexOutOfRangeException();
         }
-        if (C.n != n)
+        v.AssertVector();
+        if (v.Length != n)
         {
             throw new System.ArgumentOutOfRangeException();
         }
         for (int i = 0; i < n; i++)
         {
-            this[i, j] = C[i, 0];
+            this[i, j] = v[i];
         }
     }
 
-    public float this[int i, int j]{
+    public double this[int i, int j]{
         get{
             if (i<0 || i >= n || j<0 || j >= m)
             {
@@ -190,7 +192,7 @@ public class Matrix{
         }
     }
 
-    public float this[int index]{
+    public double this[int index]{
         get{
             
             return data[index];
@@ -208,7 +210,7 @@ public class Matrix{
         }
     }
 
-    public static Matrix operator * (Matrix A, float s){
+    public static Matrix operator * (Matrix A, double s){
         Matrix output = new Matrix(A.n, A.m);
         for (int i = 0; i < output.Length; i++)
         {
@@ -217,11 +219,11 @@ public class Matrix{
         return output;
     }
 
-    public static Matrix operator * (float s, Matrix A){
+    public static Matrix operator * (double s, Matrix A){
         return A * s;
     }
 
-    public static Matrix operator / (Matrix A, float s){
+    public static Matrix operator / (Matrix A, double s){
         return A * (1f / s);
     }
 
@@ -234,14 +236,14 @@ public class Matrix{
         return output;
     }
 
-    public float norm{
+    public double norm{
         get{
-            float total = 0;
+            double total = 0;
             for (int i = 0; i < Length; i++)
             {
-                total += Mathf.Pow(this[i], 2);
+                total += this[i] * this[i];
             }
-            return Mathf.Sqrt(total);
+            return Math.Sqrt(total);
         }
     }
 
@@ -250,12 +252,12 @@ public class Matrix{
         var v = new Vector4();
         for (int i = 0; i < A.Length; i++)
         {
-            v[i] = A[i];
+            v[i] = (float)A[i];
         }
         return v;
     }
 
-    public static implicit operator float(Matrix A){
+    public static implicit operator double(Matrix A){
         if (A.IsScalar())
         {
             return A[0];
@@ -278,11 +280,11 @@ public class Matrix{
     public static Matrix operator * (Matrix A, Matrix B){
         if (B.IsScalar())
         {
-            return A * (float)B;
+            return A * (double)B;
         }
         if (A.IsScalar())
         {
-            return (float)A * B;
+            return (double)A * B;
         }
         if (A.m != B.n)
         {
@@ -293,7 +295,7 @@ public class Matrix{
         {
             for (int j = 0; j < B.m; j++)
             {
-                float entry = 0;
+                double entry = 0;
                 for (int k = 0; k < A.m; k++)
                 {
                     entry += A[i, k] * B[k, j];
@@ -304,7 +306,7 @@ public class Matrix{
         return output;
     }
 
-    public static Matrix operator - (Matrix A, Matrix B){
+    public static Matrix operator + (Matrix A, Matrix B){
         if (A.n != B.n || A.m != B.m)
         {
             throw new System.InvalidOperationException("Matrices must be of same dimensions");
@@ -314,12 +316,39 @@ public class Matrix{
         {
             for (int j = 0; j < A.m; j++)
             {
-                output[i, j] = A[i, j] - B[i, j];
+                output[i, j] = A[i, j] + B[i, j];
             }
         }
         return output;
     }
 
+    public static Matrix operator - (Matrix A, Matrix B){
+        return A + B * -1;
+    }
+        
+    public Matrix Diag{
+        get{
+            
+            if (IsRowVector() || IsColumnVector())
+            {
+                Matrix diag = new Matrix(this.Length, this.Length);
+                for (int i = 0; i < this.Length; i++)
+                {
+                    diag[i, i] = this[i];
+                }
+                return diag;
+            }
+            else
+            {
+                Matrix diag = new Matrix(Math.Min(this.n, this.m), 1);
+                for (int i = 0; i < diag.Length; i++)
+                {
+                    diag[i] = this[i, i];
+                }
+                return diag;
+            }
+        }
+    }
 
     public override string ToString()
     {
@@ -335,13 +364,187 @@ public class Matrix{
         return s;
     }
 
+    public delegate Matrix Function(Matrix parameters);
+
+    public static Matrix Optimize(Function jac, Function res, Matrix p){
+        int MAX_ITER = 100;
+        double lambda = 1f;
+        double ftol = 1e-12;
+        double gtol = 1e-12;
+        double prevCost = double.MaxValue;
+        Matrix cp = p;
+        var Jr= new Matrix(1,1);
+        var H = new Matrix(1,1);
+        var g = new Matrix(1,1);
+        for (int i = 0; i < MAX_ITER; i++)
+        {
+            var r = res(cp);
+            double cost = r.norm;
+
+            if( cost <= prevCost ) { // new place is better (always true iteration 1)
+                Debug.Log("IMPROVED: "+cost);
+                Debug.DrawLine(new Vector3((float)p.x,0,(float)p.y), new Vector3((float)cp.x,0,(float)cp.y), Color.red, 5f);
+
+                // check for convergence
+                // ftol <= (cost(k) - cost(k+1))/cost(k)
+                if (ftol * prevCost >= prevCost-cost)
+                {
+                    Debug.Log("Converged by cost");
+                    return p;
+                }
+
+                prevCost = cost;
+                lambda /= 10.0;
+
+                p = cp;
+                Jr = jac(p);
+                H = Jr.T * Jr;
+                g = Jr.T * r;
+
+                bool converged = true;
+                for (int j = 0; j < g.Length; j++) converged &= Math.Abs(g[j]) < gtol;
+                
+                if (converged)
+                {
+                    Debug.Log("Converged by gradient");
+                    return p;
+                }
+
+            } else {
+                Debug.Log("WORSE: " + cost);
+
+                lambda *= 10.0;
+            }
+                
+            var hinv = (H + (lambda * H.Diag).Diag).Inv;
+            Debug.Log("H: "+H);
+            Debug.Log("Hinv: " + hinv);
+            var step = hinv * g;
+            Debug.Log("Lambda: " + lambda);
+            Debug.Log("STEP: " + step);
+
+            cp = p - step;
+        }
+        return null;
+
+    }
+
+    public Matrix Inv{
+        get{
+            return GaussianElimination();
+        }
+    }
+
+    public Matrix PInv{
+        get{
+            Matrix U, S, V;
+
+            SVD(out U, out S, out V);
+            var s = S.Diag;
+            for (int i = 0; i < s.Length; i++)
+            {
+                if (s[i] != 0)
+                {
+                    s[i] = 1f / s[i];
+                }
+            }
+            return V * s.Diag * U.T;
+        }
+    }
+
+    public Matrix GaussianElimination(){
+        Matrix A = new Matrix(n, m * 2);
+        for (int i = 0; i < n; i++)
+        {
+            for (int j = 0; j < m; j++)
+            {
+                A[i, j] = this[i, j];
+            }
+        }
+        for (int i = 0; i < n; i++)
+        {
+            A[i, i + m] = 1;
+        }
+
+        int h = 0;
+        int k = 0;
+        while (h < n && k < m)
+        {
+            int i_max = 0;
+            double i_max_val = double.NegativeInfinity;
+            for (int i = h; i < n; i++)
+            {
+                if (i_max_val < A[i, k])
+                {
+                    i_max = i;
+                    i_max_val = A[i, k];
+                }
+            }
+            if (A[i_max, k] == 0)
+            {
+                k++;
+            }
+            else
+            {
+                var temp = A.Row(i_max);
+                A.SetRow(i_max, A.Row(h));
+                A.SetRow(h, temp);
+
+                for (int i = h + 1; i < n; i++)
+                {
+                    var f = A[i, k] / A[h, k];
+                    A[i, k] = 0;
+
+                    for (int j = k + 1; j < m*2; j++)
+                    {
+                        A[i, j] = A[i, j] - A[h, j] * f;
+                    }
+                }
+                h++;
+                k++;
+            }
+        }
+
+        for (int i = 0; i < n; i++)
+        {
+            double e = A[i, i];
+            double f = 1.0 / A[i, i];
+            A[i, i] = 1;
+            for (int j = i+1; j < m * 2; j++)
+            {
+                A[i, j] *= f;
+            }
+        }
+        for (h = 0; h < n; h++)
+        {
+            for (k = h + 1; k < m; k++)
+            {
+                double f = A[h, k];
+                A[h, k] = 0;
+                for (int j = k+1; j < m * 2; j++)
+                {
+                    A[h, j] -= A[k, j]*f;
+                }
+            }
+        }
+        Matrix B = new Matrix(n, m);
+        for (int i = 0; i < n; i++)
+        {
+            for (int j = 0; j < m; j++)
+            {
+                B[i, j] = A[i, j + m];
+            }
+        }
+        return B;
+    }
+
     public void SVD(out Matrix U, out Matrix S, out Matrix V)
     {
         var A = this;
         U = new Matrix(A.n, A.n);
         S = new Matrix(A.n, A.m);
         V = new Matrix(A.m, A.m);
-        for (int i = 0; i < Mathf.Min(A.m, A.n); i++)
+        for (int i = 0; i < Math.Min(A.m, A.n); i++)
         {
             var M1D = A.copy();
             for (int j = 0; j < i; j++)
@@ -350,7 +553,7 @@ public class Matrix{
             }
             Matrix u;
             Matrix v;
-            float s;
+            double s;
 
             {
                 Matrix B = M1D.T * M1D;
@@ -359,13 +562,13 @@ public class Matrix{
 
                 for (int k = 0; k < v.Length; k++)
                 {
-                    v[k] = Random.value;
+                    v[k] = UnityEngine.Random.value;
                 }
                 v = v / v.norm;
 
 
-                float dot = 0;
-                while (dot < 1 - 0.000001f)
+                double dot = 0;
+                while (dot < 1 - 1e-12)
                 {
                     var lastV = v.copy();
 

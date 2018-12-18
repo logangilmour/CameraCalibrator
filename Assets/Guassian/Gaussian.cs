@@ -66,12 +66,12 @@ public class Gaussian : MonoBehaviour {
             HEquations.SVD(out U, out S, out V);
             var b = V.Col(V.m - 1);
 
-            float B11 = b[0];
-            float B12 = b[1];
-            float B22 = b[2];
-            float B13 = b[3];
-            float B23 = b[4];
-            float B33 = b[5];
+            float B11 = (float)b[0];
+            float B12 = (float)b[1];
+            float B22 = (float)b[2];
+            float B13 = (float)b[3];
+            float B23 = (float)b[4];
+            float B33 = (float)b[5];
 
             float v = (B12 * B13 - B11 * B23) / (B11 * B22 - B12 * B12);
             float lambda = B33 - (B13 * B13 + v * (B12 * B13 - B11 * B23)) /B11;
