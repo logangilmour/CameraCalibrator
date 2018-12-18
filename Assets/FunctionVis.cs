@@ -6,7 +6,7 @@ public class FunctionVis : MonoBehaviour {
 
 	// Use this for initialization
     delegate float func2D(Vector2 p);
-    func2D f = (Vector2 p) => p.x * p.x + p.y * p.y;
+
 	void Start () {
         Mesh mesh = new Mesh();
         int RES = 100;
@@ -20,8 +20,8 @@ public class FunctionVis : MonoBehaviour {
             {
                 int voff = x + y * RES;
                 Vector2 p = new Vector2(x / (RES-1f),y/(RES-1f))*2-Vector2.one;
-
-                verts[voff] = new Vector3(p.x, f(p), p.y);
+                float py = (float)Fun(new Matrix(p.x, p.y));
+                verts[voff] = new Vector3(p.x, py, p.y);
                 if (x < RES - 1 && y < RES - 1)
                 {
                     int toff = x * 6 + y * 6 * (RES - 1);
@@ -42,7 +42,7 @@ public class FunctionVis : MonoBehaviour {
 
         GetComponent<MeshFilter>().sharedMesh = mesh;
 
-        Matrix par = new Matrix(0.5f,0.5f).T;
+        Matrix par = new Matrix(0.7,0.2f).T;
 
         Debug.Log(Matrix.Optimize(Jacobian,Fun,par));
        
@@ -50,6 +50,9 @@ public class FunctionVis : MonoBehaviour {
 	}
     Matrix Fun(Matrix p){
         return new Matrix(p.x*p.x+p.y*p.y);
+    }
+    Matrix Fun2(Matrix p){
+        return new Matrix((p.x-0.01)*(p.x-0.01)+(p.y-p.x*p.x)*(p.y-p.x*p.x));
     }
 
     Matrix Jacobian(Matrix p){

@@ -383,7 +383,7 @@ public class Matrix{
 
             if( cost <= prevCost ) { // new place is better (always true iteration 1)
                 Debug.Log("IMPROVED: "+cost);
-                Debug.DrawLine(new Vector3((float)p.x,0,(float)p.y), new Vector3((float)cp.x,0,(float)cp.y), Color.red, 5f);
+                Debug.DrawLine(new Vector3((float)p.x,0,(float)p.y), new Vector3((float)cp.x,0,(float)cp.y), Color.red, 30f);
 
                 // check for convergence
                 // ftol <= (cost(k) - cost(k+1))/cost(k)
